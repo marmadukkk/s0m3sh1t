@@ -1,0 +1,14 @@
+import sys
+leet={"a":"4","e":"3","i":"1","l":"1","o":"0","s":"5","t":"7","y":"9","A":"4","E":"3","I":"1","L":"1","O":"0","S":"5","T":"7","Y":"9"}
+def pig(w):
+ v="aeiouAEIOU"
+ if not w:return w
+ if w[0]in v:return w+"\'way"
+ for i,c in enumerate(w):
+  if c in v:return w[i:]+"\'"+w[:i]+"oy"
+ return w+"\'oy"
+s=sys.argv[1]if len(sys.argv)>1 else input()
+p=" ".join(pig(w)for w in s.split())
+l=p.lower()
+for k in leet:l=l.replace(k,leet[k])
+print(l)
