@@ -1,0 +1,94 @@
+import sys
+
+SBOX = [((i * 0x5D) ^ 0xA3) & 0xFF for i in range(256)]
+INV_SBOX = [0] * 256
+for i in range(256):
+    INV_SBOX[SBOX[i]] = i
+
+def rotate_left(val, bits):
+    return ((val << bits) | (val >> (8 - bits))) & 0xFF
+
+def rotate_right(val, bits):
+    return ((val >> bits) | (val << (8 - bits))) & 0xFF
+
+BLOCK_SIZE = 32
+
+def chaos_encrypt(text: str, key: str, rounds: int = 16) -> str:
+    leet = {"a":"4","e":"3","i":"1","l":"1","o":"0","s":"5","t":"7","y":"9"}
+    def pig(w):
+        v = "aeiouAEIOU"
+        if not w: return w
+        if w[0] in v: return w + "'way"
+        for i, c in enumerate(w):
+            if c in v:
+                return w[i:] + "'" + w[:i] + "oy"
+        return w + "'oy"
+    
+    words = text.split()
+    transformed = " ".join(pig(w) for w in words).lower()
+    for k, v in leet.items():
+        transformed = transformed.replace(k, v)
+    
+    data = bytearray(transformed.encode('utf-8'))
+    orig_len = len(data)
+    
+    header = orig_len.to_bytes(2, 'big')
+    payload = header + data
+    if len(payload) > BLOCK_SIZE:
+        payload = payload[:BLOCK_SIZE]
+    else:
+        payload += b'\x00' * (BLOCK_SIZE - len(payload))
+    
+    key_bytes = key.encode('utf-8')
+    key_len = len(key_bytes)
+    data = bytearray(payload)
+    
+    for r in range(rounds):
+        for i in range(BLOCK_SIZE):
+            kbyte = key_bytes[i % key_len] ^ r ^ (i & 0xFF)
+            data[i] ^= kbyte
+            rot = ((r * 5) + i) % 7 + 1
+            data[i] = rotate_left(data[i], rot)
+            data[i] = SBOX[data[i]]
+            data[i] ^= ((r * 37) + (i * 19)) & 0xFF
+    
+    for i in range(BLOCK_SIZE):
+        data[i] ^= data[(i * 7 + 11) % BLOCK_SIZE]
+    
+    return data.hex()
+
+def chaos_decrypt(hex_str: str, key: str, rounds: int = 16) -> str:
+    try:
+        data = bytearray.fromhex(hex_str)
+    except:
+        return "Invalid hex"
+    if len(data) != BLOCK_SIZE:
+        return "Invalid length"
+    
+    key_bytes = key.encode('utf-8')
+    key_len = len(key_bytes)
+    
+    for i in range(BLOCK_SIZE-1, -1, -1):
+        data[i] ^= data[(i * 7 + 11) % BLOCK_SIZE]
+    
+    for r in range(rounds - 1, -1, -1):
+        for i in range(BLOCK_SIZE-1, -1, -1):
+            data[i] ^= ((r * 37) + (i * 19)) & 0xFF
+            data[i] = INV_SBOX[data[i]]
+            rot = ((r * 5) + i) % 7 + 1
+            data[i] = rotate_right(data[i], rot)
+            kbyte = key_bytes[i % key_len] ^ r ^ (i & 0xFF)
+            data[i] ^= kbyte
+    
+    orig_len = int.from_bytes(data[:2], 'big')
+    result = data[2:2+orig_len].decode('utf-8', errors='ignore')
+    return result
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        text = sys.argv[1]
+        key = sys.argv[2] if len(sys.argv) > 2 else "089765432354657687980997867564"
+        enc = chaos_encrypt(text, key)
+        dec = chaos_decrypt(enc, key)
+        print(enc)
